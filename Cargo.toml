@@ -1,0 +1,10 @@
+[package]
+name = "macwalk"
+description = "Take your Mac for a walk."
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+objc2 = "0.5.2"
