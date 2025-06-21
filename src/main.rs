@@ -1,8 +1,12 @@
+#![allow(unused, non_snake_case)]
 // Import necessary modules from the standard library.
 use std::env;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_ulong};
 use std::ptr;
+
+mod macros;
+use macros::*;
 
 // Link to the Objective-C runtime and the Foundation framework.
 #[link(name = "objc", kind = "dylib")]
@@ -71,9 +75,9 @@ pub fn main() {
         let sel_default_manager = sel_registerName(b"defaultManager\0".as_ptr() as *const c_char);
 
         // Cast `objc_msgSend` for this call.
-        let msg_send_fn: unsafe extern "C" fn(Id, Selector) -> Id = 
+        let msg_send_fn: unsafe extern "C" fn(Id, Selector) -> Id =
             std::mem::transmute(objc_msgSend as *const ());
-        
+
         // Send the message to get the singleton file manager instance.
         let file_manager: Id = msg_send_fn(nsfilemanager_class, sel_default_manager);
 
@@ -89,8 +93,12 @@ pub fn main() {
             std::mem::transmute(objc_msgSend as *const ());
 
         // We pass `ptr::null_mut()` for the error pointer, as we are not handling it.
-        let directory_contents: Id =
-            msg_send_fn(file_manager, sel_contents_at_path, ns_path_string, ptr::null_mut());
+        let directory_contents: Id = msg_send_fn(
+            file_manager,
+            sel_contents_at_path,
+            ns_path_string,
+            ptr::null_mut(),
+        );
 
         // --- 4. Iterate over the resulting `NSArray` and print the contents ---
 
@@ -102,7 +110,8 @@ pub fn main() {
             let count = msg_send_fn(directory_contents, sel_count);
 
             // Get selectors for `objectAtIndex:` and `UTF8String`.
-            let sel_object_at_index = sel_registerName(b"objectAtIndex:\0".as_ptr() as *const c_char);
+            let sel_object_at_index =
+                sel_registerName(b"objectAtIndex:\0".as_ptr() as *const c_char);
             let sel_utf8_string = sel_registerName(b"UTF8String\0".as_ptr() as *const c_char);
 
             // Loop through the array.
@@ -124,7 +133,7 @@ pub fn main() {
                 }
             }
         } else {
-             eprintln!("Failed to get directory contents. The path may be invalid or you may not have permissions.");
+            eprintln!("Failed to get directory contents. The path may be invalid or you may not have permissions.");
         }
     }
     // NOTE: Memory management is handled by Objective-C's Automatic Reference Counting (ARC).
