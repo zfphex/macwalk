@@ -8,6 +8,9 @@ use std::ptr;
 mod macros;
 use macros::*;
 
+mod class;
+use class::*;
+
 // Link to the Objective-C runtime and the Foundation framework.
 #[link(name = "objc", kind = "dylib")]
 #[link(name = "Foundation", kind = "framework")]
