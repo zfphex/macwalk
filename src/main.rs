@@ -39,6 +39,12 @@ extern "C" {
     fn objc_msgSend(receiver: Id, selector: Selector, ...);
 }
 
+// Helper to fetch an Objective-C class by its Rust `&str` name.
+fn get_class(name: &str) -> Id {
+    let c_name = CString::new(name).expect("CString::new failed");
+    unsafe { objc_getClass(c_name.as_ptr() as *const c_char) }
+}
+
 pub fn main() {
     // Get the directory path from command-line arguments, or use "." as a default.
     let args: Vec<String> = env::args().collect();
@@ -51,7 +57,7 @@ pub fn main() {
         // --- 1. Create an `NSString` from our Rust string path ---
 
         // Get the `NSString` class.
-        let nsstring_class = objc_getClass(b"NSString\0".as_ptr() as *const c_char);
+        let nsstring_class = get_class("NSString");
 
         // Create a C-style string for the path.
         let c_path = CString::new(path_str).expect("CString::new failed");
@@ -62,7 +68,7 @@ pub fn main() {
         // --- 2. Get the default `NSFileManager` instance ---
 
         // Get the `NSFileManager` class.
-        let nsfilemanager_class = objc_getClass(b"NSFileManager\0".as_ptr() as *const c_char);
+        let nsfilemanager_class = get_class("NSFileManager");
 
         // Send the message to get the singleton file manager instance.
         let file_manager: Id = defaultManager(nsfilemanager_class);
@@ -77,15 +83,15 @@ pub fn main() {
 
         if !directory_contents.is_null() {
             // Get the number of items in the array.
-            let count = count(directory_contents);
+            let len = count(directory_contents);
 
             // Loop through the array.
-            for i in 0..count {
+            for i in 0..len {
                 // Get the object (an `NSString`) at the current index.
-                let obj_at_index = objectAtIndex(directory_contents, i);
+                let item = objectAtIndex(directory_contents, i);
 
                 // Get the C string pointer from the `NSString`.
-                let c_str_ptr = UTF8String(obj_at_index);
+                let c_str_ptr = UTF8String(item);
 
                 // Convert the C string to a Rust string slice and print it.
                 if !c_str_ptr.is_null() {
@@ -94,7 +100,7 @@ pub fn main() {
                 }
             }
         } else {
-             eprintln!("Failed to get directory contents. The path may be invalid or you may not have permissions.");
+            eprintln!("Failed to get directory contents. The path may be invalid or you may not have permissions.");
         }
     }
     // NOTE: Memory management is handled by Objective-C's Automatic Reference Counting (ARC).
