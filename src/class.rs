@@ -1,35 +1,25 @@
-use std::os::raw::c_char;
+use crate::Id;
+use crate::{objc_getClass, objc_msgSend, sel_registerName, Selector};
+use std::ffi::c_char;
 use std::mem;
-use crate::{objc_msgSend, sel_registerName, Selector, Id};
 
 /// import_class!
 ///
-/// Given a struct name and a list of instance‐method signatures + selectors,
-/// this will:
-///  1. define `pub struct $N(pub Id);`  
-///  2. impl one `pub unsafe fn` per `fn … = "sel:";` for you  
-///
-/// Example:
-/// ```rust
-/// import_class! {
-///     struct NSFileManager {
-///         fn contentsOfDirectory(
-///             &self,
-///             path: Id,
-///             error: *mut Id
-///         ) -> Id = "contentsOfDirectoryAtPath:error:";
-///     }
-/// }
-/// // expands to:
-/// // pub struct NSFileManager(pub Id);
-/// // impl NSFileManager {
-/// //   pub unsafe fn contentsOfDirectory(&self, path: Id, error: *mut Id) -> Id { … }
-/// // }
-/// ```
+/// Generates:
+///  • `pub struct Name(pub Id);`  
+///  • for each `ctor foo(args) = "sel:";`
+///      `pub unsafe fn foo(args) -> Self { /* msg_send, wrap in Self */ }`  
+///  • for each `fn bar(&self, …) ->Ret = "sel2:";`
+///      `pub unsafe fn bar(&self, …)->Ret { /* msg_send on self.0 */ }`
 #[macro_export]
 macro_rules! import_class {
     (
-        struct $struct_name:ident {
+        struct $StructName:ident {
+            // zero-arg or multi-arg ctors
+            $(
+                ctor $ctor:ident ( $( $carg:ident : $carg_ty:ty ),* ) = $ctor_sel:literal ;
+            )*
+            // instance methods
             $(
                 fn $method:ident(
                     &self $(, $arg:ident : $arg_ty:ty )*
@@ -37,24 +27,49 @@ macro_rules! import_class {
             )*
         }
     ) => {
-        /// A thin newtype wrapper around an Objective-C Id.
         #[derive(Debug, Clone, Copy)]
-        pub struct $struct_name(pub Id);
+        pub struct $StructName(pub Id);
 
-        impl $struct_name {
+        impl $StructName {
             $(
                 #[allow(non_snake_case)]
-                pub unsafe fn $method(&self, $($arg: $arg_ty),* ) -> $ret {
-                    // build selector + register it
-                    let sel_cstr = concat!($sel_name, "\0");
-                    let sel = sel_registerName(sel_cstr.as_ptr() as *const c_char);
-                    // cast objc_msgSend into the right fn‐type
+                pub unsafe fn $ctor( $( $carg : $carg_ty ),* ) -> Self {
+                    // register the selector
+                    let sel = sel_registerName(
+                        concat!($ctor_sel, "\0").as_ptr() as *const c_char
+                    );
+                    // get the `Class` object
+                    let cls = objc_getClass(
+                        concat!(stringify!($StructName), "\0")
+                            .as_ptr() as *const c_char
+                    );
+                    // cast objc_msgSend -> fn(Id,Selector, …) -> Id
+                    let msg_send: unsafe extern "C" fn(
+                        Id,
+                        Selector
+                        $(, $carg_ty)*
+                    ) -> Id =
+                        mem::transmute(objc_msgSend as *const ());
+                    // invoke + wrap
+                    $StructName(msg_send(cls, sel $(, $carg)*))
+                }
+            )*
+
+            $(
+                #[allow(non_snake_case)]
+                pub unsafe fn $method(
+                    &self,
+                    $( $arg : $arg_ty ),*
+                ) -> $ret {
+                    let sel = sel_registerName(
+                        concat!($sel_name, "\0").as_ptr() as *const c_char
+                    );
                     let msg_send: unsafe extern "C" fn(
                         Id,
                         Selector
                         $(, $arg_ty)*
-                    ) -> $ret = mem::transmute(objc_msgSend as *const ());
-                    // call it on our wrapped `Id`
+                    ) -> $ret =
+                        mem::transmute(objc_msgSend as *const ());
                     msg_send(self.0, sel $(, $arg)*)
                 }
             )*
@@ -62,8 +77,18 @@ macro_rules! import_class {
     };
 }
 
+// NSString as a wrapper: its `new(...)` is the old
+// `stringWithUTF8String:` class‐method.
+import_class! {
+    struct NSString {
+        ctor new(utf8: *const c_char) = "stringWithUTF8String:";
+    }
+}
+
+// NSFileManager with a zero‐arg `default()` and an instance method.
 import_class! {
     struct NSFileManager {
+        ctor default() = "defaultManager";
         fn contentsOfDirectory(
             &self,
             path: Id,

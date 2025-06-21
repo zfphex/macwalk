@@ -25,6 +25,7 @@ macro_rules! import {
             $(, $arg_name:ident : $arg_ty:ty)*
         ) -> $ret:ty = $sel_name:literal $(;)?
     ) => {
+        #[allow(dead_code)]
         pub unsafe fn $fn_name(
             $receiver: $recv_ty,
             $( $arg_name: $arg_ty ),*

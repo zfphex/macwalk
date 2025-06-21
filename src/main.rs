@@ -1,8 +1,8 @@
-#![allow(unused, non_snake_case)]
+#![allow(non_snake_case)]
 // Import necessary modules from the standard library.
 use std::env;
 use std::ffi::{CStr, CString};
-use std::os::raw::{c_char, c_ulong};
+use std::os::raw::c_char;
 use std::ptr;
 
 mod macros;
@@ -43,6 +43,7 @@ extern "C" {
 }
 
 // Helper to fetch an Objective-C class by its Rust `&str` name.
+#[allow(dead_code)]
 fn get_class(name: &str) -> Id {
     let c_name = CString::new(name).expect("CString::new failed");
     unsafe { objc_getClass(c_name.as_ptr() as *const c_char) }
@@ -57,33 +58,18 @@ pub fn main() {
 
     // All interactions with the Objective-C runtime are inherently unsafe.
     unsafe {
-        // --- 1. Create an `NSString` from our Rust string path ---
-
-        // Get the `NSString` class.
-        let nsstring_class = get_class("NSString");
-
         // Create a C-style string for the path.
         let c_path = CString::new(path_str).expect("CString::new failed");
+        let ns_path_string = NSString::new(c_path.as_ptr());
 
-        // Send the message to create the `NSString` object.
-        let ns_path_string: Id = stringWithUTF8String(nsstring_class, c_path.as_ptr());
-
-        // --- 2. Get the default `NSFileManager` instance ---
-
-        // Get the `NSFileManager` class.
-        let nsfilemanager_class = get_class("NSFileManager");
-
-        // Send the message to get the singleton file manager instance.
-        let file_manager: Id = defaultManager(nsfilemanager_class);
-
-        // --- 3. Call `contentsOfDirectoryAtPath:error:` ---
+        // Get the default `NSFileManager` instance
+        let file_manager = NSFileManager::default();
 
         // We pass `ptr::null_mut()` for the error pointer, as we are not handling it.
         let directory_contents: Id =
-            contentsOfDirectory(file_manager, ns_path_string, ptr::null_mut());
+            file_manager.contentsOfDirectory(ns_path_string.0, ptr::null_mut());
 
-        // --- 4. Iterate over the resulting `NSArray` and print the contents ---
-
+        // --- 3. Iterate over the resulting `NSArray` and print the contents ---
         if !directory_contents.is_null() {
             // Get the number of items in the array.
             let len = count(directory_contents);
