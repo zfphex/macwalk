@@ -56,75 +56,36 @@ pub fn main() {
         // Create a C-style string for the path.
         let c_path = CString::new(path_str).expect("CString::new failed");
 
-        // Get the selector for the `stringWithUTF8String:` class method.
-        let sel_with_utf8 = sel_registerName(b"stringWithUTF8String:\0".as_ptr() as *const c_char);
-
-        // Cast `objc_msgSend` to the correct function signature for this call.
-        let msg_send_fn: unsafe extern "C" fn(Id, Selector, *const c_char) -> Id =
-            std::mem::transmute(objc_msgSend as *const ());
-
         // Send the message to create the `NSString` object.
-        let ns_path_string: Id = msg_send_fn(nsstring_class, sel_with_utf8, c_path.as_ptr());
+        let ns_path_string: Id = stringWithUTF8String(nsstring_class, c_path.as_ptr());
 
         // --- 2. Get the default `NSFileManager` instance ---
 
         // Get the `NSFileManager` class.
         let nsfilemanager_class = objc_getClass(b"NSFileManager\0".as_ptr() as *const c_char);
 
-        // Get the selector for the `defaultManager` class method.
-        let sel_default_manager = sel_registerName(b"defaultManager\0".as_ptr() as *const c_char);
-
-        // Cast `objc_msgSend` for this call.
-        let msg_send_fn: unsafe extern "C" fn(Id, Selector) -> Id =
-            std::mem::transmute(objc_msgSend as *const ());
-
         // Send the message to get the singleton file manager instance.
-        let file_manager: Id = msg_send_fn(nsfilemanager_class, sel_default_manager);
+        let file_manager: Id = defaultManager(nsfilemanager_class);
 
         // --- 3. Call `contentsOfDirectoryAtPath:error:` ---
 
-        // Get the selector for `contentsOfDirectoryAtPath:error:`.
-        let sel_contents_at_path =
-            sel_registerName(b"contentsOfDirectoryAtPath:error:\0".as_ptr() as *const c_char);
-
-        // Cast `objc_msgSend` for this call.
-        // The return is an `NSArray`, which is also an `Id`.
-        let msg_send_fn: unsafe extern "C" fn(Id, Selector, Id, Id) -> Id =
-            std::mem::transmute(objc_msgSend as *const ());
-
         // We pass `ptr::null_mut()` for the error pointer, as we are not handling it.
-        let directory_contents: Id = msg_send_fn(
-            file_manager,
-            sel_contents_at_path,
-            ns_path_string,
-            ptr::null_mut(),
-        );
+        let directory_contents: Id =
+            contentsOfDirectory(file_manager, ns_path_string, ptr::null_mut());
 
         // --- 4. Iterate over the resulting `NSArray` and print the contents ---
 
         if !directory_contents.is_null() {
             // Get the number of items in the array.
-            let sel_count = sel_registerName(b"count\0".as_ptr() as *const c_char);
-            let msg_send_fn: unsafe extern "C" fn(Id, Selector) -> c_ulong =
-                std::mem::transmute(objc_msgSend as *const ());
-            let count = msg_send_fn(directory_contents, sel_count);
-
-            // Get selectors for `objectAtIndex:` and `UTF8String`.
-            let sel_object_at_index =
-                sel_registerName(b"objectAtIndex:\0".as_ptr() as *const c_char);
-            let sel_utf8_string = sel_registerName(b"UTF8String\0".as_ptr() as *const c_char);
+            let count = count(directory_contents);
 
             // Loop through the array.
             for i in 0..count {
                 // Get the object (an `NSString`) at the current index.
-                let msg_send_fn: unsafe extern "C" fn(Id, Selector, c_ulong) -> Id =
-                    std::mem::transmute(objc_msgSend as *const ());
-                let obj_at_index = msg_send_fn(directory_contents, sel_object_at_index, i);
+                let obj_at_index = objectAtIndex(directory_contents, i);
 
                 // Get the C string pointer from the `NSString`.
-                let msg_send_fn: unsafe extern "C" fn(Id, Selector) -> *const c_char =
-                    std::mem::transmute(objc_msgSend as *const ());
-                let c_str_ptr = msg_send_fn(obj_at_index, sel_utf8_string);
+                let c_str_ptr = UTF8String(obj_at_index);
 
                 // Convert the C string to a Rust string slice and print it.
                 if !c_str_ptr.is_null() {
@@ -133,7 +94,7 @@ pub fn main() {
                 }
             }
         } else {
-            eprintln!("Failed to get directory contents. The path may be invalid or you may not have permissions.");
+             eprintln!("Failed to get directory contents. The path may be invalid or you may not have permissions.");
         }
     }
     // NOTE: Memory management is handled by Objective-C's Automatic Reference Counting (ARC).
