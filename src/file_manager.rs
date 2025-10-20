@@ -22,12 +22,12 @@ use std::{
 
 pub fn NSString(str: &str) -> Id {
     unsafe {
+        let str = CString::new(str).unwrap();
         let sel = register_name("stringWithUTF8String:");
-        let cls = get_class("NSString");
-        let c_str = CString::new(str).unwrap();
+        let class = get_class("NSString");
         let msg_send: unsafe extern "C" fn(Id, Selector, *const c_char) -> Id =
             transmute(objc_msgSend as *const ());
-        msg_send(cls, sel, c_str.as_ptr() as *const c_char)
+        msg_send(class, sel, str.as_ptr() as *const c_char)
     }
 }
 

@@ -4,7 +4,6 @@ use macwalk::*;
 pub fn main() {
     let args: Vec<String> = std::env::args().collect();
     let path = if args.len() > 1 { &args[1] } else { "." };
-
     println!("Listing contents of directory: \"{}\"", path);
     recursive_walk(path);
 }
