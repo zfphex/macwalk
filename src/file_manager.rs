@@ -53,6 +53,24 @@ impl NSFileManager {
             msg_send(self.0, sel, path, error)
         }
     }
+
+    pub unsafe fn enumerator(&self, path: Id) -> Id {
+        unsafe {
+            let sel = register_name("enumeratorAtPath:");
+            let msg_send: unsafe extern "C" fn(Id, Selector, Id) -> Id =
+                transmute(objc_msgSend as *const ());
+            msg_send(self.0, sel, path)
+        }
+    }
+}
+
+pub unsafe fn nextObject(enumerator: Id) -> Id {
+    unsafe {
+        let sel = register_name("nextObject");
+        let msg_send: unsafe extern "C" fn(Id, Selector) -> Id =
+            transmute(objc_msgSend as *const ());
+        msg_send(enumerator, sel)
+    }
 }
 
 pub unsafe fn count(array: Id) -> c_ulong {
